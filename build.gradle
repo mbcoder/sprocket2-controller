@@ -55,8 +55,8 @@ javafx {
 }
 
 application {
-    mainModule = "com.mycompany.app"
-    mainClass = "com.mycompany.app.App"
+    mainModule = "com.mbcoder.iot.robotcontroller"
+    mainClass = "com.mbcoder.iot.robotcontroller.ControllerApp"
 }
 
 task copyNatives(type: Copy) {

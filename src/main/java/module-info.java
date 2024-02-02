@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
+/*
 module com.mycompany.app {
   // modules required by the app
   requires com.esri.arcgisruntime;
@@ -21,4 +21,14 @@ module com.mycompany.app {
   requires org.slf4j.nop;
 
   exports com.mycompany.app;
+}
+ */
+
+module com.mbcoder.iot.robotcontroller {
+  // modules required by the app
+  requires com.esri.arcgisruntime;
+  requires javafx.graphics;
+  requires org.slf4j.nop;
+
+  exports com.mbcoder.iot.robotcontroller;
 }
