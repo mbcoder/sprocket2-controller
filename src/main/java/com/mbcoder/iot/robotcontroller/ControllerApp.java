@@ -1,9 +1,17 @@
 package com.mbcoder.iot.robotcontroller;
 
+import java.net.Socket;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.security.SecureRandom;
+import java.security.cert.X509Certificate;
+
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLEngine;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509ExtendedTrustManager;
 
 import com.esri.arcgisruntime.mapping.ArcGISMap;
 import com.esri.arcgisruntime.mapping.MobileMapPackage;
@@ -19,7 +27,37 @@ public class ControllerApp extends Application {
 
   private MapView mapView;
 
-  HttpClient client = HttpClient.newHttpClient();
+  private final X509ExtendedTrustManager trustManager = new X509ExtendedTrustManager() {
+    @Override
+    public X509Certificate[] getAcceptedIssuers() {
+      return new X509Certificate[]{};
+    }
+
+    @Override
+    public void checkClientTrusted(X509Certificate[] chain, String authType) {
+    }
+
+    @Override
+    public void checkServerTrusted(X509Certificate[] chain, String authType) {
+    }
+
+    @Override
+    public void checkClientTrusted(X509Certificate[] chain, String authType, Socket socket) {
+    }
+
+    @Override
+    public void checkServerTrusted(X509Certificate[] chain, String authType, Socket socket) {
+    }
+
+    @Override
+    public void checkClientTrusted(X509Certificate[] chain, String authType, SSLEngine engine) {
+    }
+
+    @Override
+    public void checkServerTrusted(X509Certificate[] chain, String authType, SSLEngine engine) {
+    }
+  };
+
 
   public static void main(String[] args) {
 
@@ -82,19 +120,29 @@ public class ControllerApp extends Application {
   }
 
   private void sendCommand(String command) {
+    try {
+      var sslContext = SSLContext.getInstance("TLS");
+      sslContext.init(null, new TrustManager[]{trustManager}, new SecureRandom());
 
-    URI uri = URI.create("http://127.0.0.1:8080/testOne?" + command);
-    var request = HttpRequest
-        .newBuilder()
-        .uri(uri)
-        .header("accept", "application/html")
-        .GET()
-        .build();
+      var client = HttpClient.newBuilder()
+          .sslContext(sslContext)
+          .build();
 
-    var responseAsync = client
-        .sendAsync(request, HttpResponse.BodyHandlers.ofString())
-        .thenApply(HttpResponse::body)
-        .thenAccept(System.out::println);
+      URI uri = URI.create("https://127.0.0.1:8080/testOne?" + command);
+      var request = HttpRequest
+          .newBuilder()
+          .uri(uri)
+          .header("accept", "application/html")
+          .GET()
+          .build();
+
+      var responseAsync = client
+          .sendAsync(request, HttpResponse.BodyHandlers.ofString())
+          .thenApply(HttpResponse::body)
+          .thenAccept(System.out::println);
+    } catch (Exception e) {
+      System.err.println(e.getMessage());
+    }
   }
 
   /**
