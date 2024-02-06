@@ -20,7 +20,9 @@ import java.net.http.HttpResponse;
 import java.security.SecureRandom;
 import java.security.cert.X509Certificate;
 
-import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
+
 import javafx.geometry.Point2D;
 import javafx.scene.control.Slider;
 import javafx.scene.paint.Color;
@@ -193,21 +195,21 @@ public class ControllerApp extends Application {
     btnForward.setOnAction(event -> {
       appMode = modes.IGNORE_CLICK;
       System.out.println("forward 100");
-      sendCommand("forward=100");
+      System.out.println(sendCommand("forward=100"));
     });
 
     Button btnForwardFail = new Button("Forward Fail");
     btnForwardFail.setOnAction(event -> {
       appMode = modes.IGNORE_CLICK;
       System.out.println("forward 4000 to cause fail");
-      sendCommand("forward=4000");
+      System.out.println(sendCommand("forward=4000"));
     });
 
     Button btnRotate = new Button("Rotate 10");
     btnRotate.setOnAction(event -> {
       appMode = modes.IGNORE_CLICK;
       System.out.println("rotate 10");
-      sendCommand("rotate=10");
+      System.out.println(sendCommand("rotate=10"));
     });
 
     buttonVbox.getChildren().addAll(
@@ -331,7 +333,7 @@ public class ControllerApp extends Application {
 
   }
 
-  private void sendCommand(String command) {
+  private Double sendCommand(String command) {
     try {
       var sslContext = SSLContext.getInstance("TLS");
       sslContext.init(null, new TrustManager[]{trustManager}, new SecureRandom());
@@ -349,12 +351,21 @@ public class ControllerApp extends Application {
           .build();
 
       var responseAsync = client
-          .sendAsync(request, HttpResponse.BodyHandlers.ofString())
-          .thenApply(HttpResponse::body)
-          .thenAccept(System.out::println);
+          .sendAsync(request, HttpResponse.BodyHandlers.ofString());
+      var httpResponse = responseAsync.get(200, TimeUnit.SECONDS);
+      var body = httpResponse.body();
+      Pattern responsePattern = Pattern.compile("^.*<P>Fail: *(\\d+)?</P>.*$");
+      var responseMatcher = responsePattern.matcher(body);
+      if (responseMatcher.matches()) {
+        if (responseMatcher.group(1) != null) {
+          // Failed - return the fail count
+          return Double.valueOf(responseMatcher.group(1));
+        }
+      }
     } catch (Exception e) {
       System.err.println(e.getMessage());
     }
+    return null;
   }
 
   /**
