@@ -5,6 +5,8 @@ import com.esri.arcgisruntime.geometry.Point;
 import com.esri.arcgisruntime.geometry.PointCollection;
 import com.esri.arcgisruntime.geometry.Polyline;
 import com.esri.arcgisruntime.geometry.SpatialReferences;
+import com.esri.arcgisruntime.layers.ArcGISVectorTiledLayer;
+import com.esri.arcgisruntime.mapping.Basemap;
 import com.esri.arcgisruntime.mapping.view.Graphic;
 import com.esri.arcgisruntime.mapping.view.GraphicsOverlay;
 import com.esri.arcgisruntime.symbology.MultilayerPointSymbol;
@@ -125,7 +127,9 @@ public class ControllerApp extends Application {
 
     borderPane.setCenter(mapView);
 
-    MobileMapPackage mobileMapPackage = new MobileMapPackage("EdinburghOffice.mmpk");
+    /*
+    //MobileMapPackage mobileMapPackage = new MobileMapPackage("EdinburghOffice.mmpk");
+    MobileMapPackage mobileMapPackage = new MobileMapPackage("PSConventionMap.mmpk");
     mobileMapPackage.loadAsync();
     mobileMapPackage.addDoneLoadingListener(()-> {
       System.out.println("loaded " + mobileMapPackage.getLoadStatus());
@@ -133,6 +137,22 @@ public class ControllerApp extends Application {
 
       // display the map by setting the map on the map view
       mapView.setMap(map);
+    });
+
+     */
+
+    ArcGISVectorTiledLayer vectorTiledLayer = new ArcGISVectorTiledLayer("PSConvention.vtpk");
+    vectorTiledLayer.loadAsync();
+    vectorTiledLayer.addDoneLoadingListener(() -> {
+      System.out.println("tiles loaded " + vectorTiledLayer.getLoadStatus());
+
+      ArcGISMap map = new ArcGISMap();
+      Basemap basemap = new Basemap(vectorTiledLayer);
+      System.out.println("Name " + basemap.getBaseLayers().size());
+      map.setBasemap(basemap);
+
+      mapView.setMap(map);
+
     });
 
     VBox buttonVbox = new VBox();
@@ -316,6 +336,24 @@ public class ControllerApp extends Application {
 
         System.out.println("diff x=" + xDiff + " y=" + yDiff + " bearing=" + bearing + " distance=" + distance + " rotate=" + rotateAngle);
 
+        // fix rotation angle if +/- 180
+        if (rotateAngle > 180) rotateAngle-=360;
+        if (rotateAngle < -180) rotateAngle+=360;
+
+        // perform rotation
+        sendCommand("rotate=" + (int) Math.round(rotateAngle));
+        System.out.println("rotate=" + (int) Math.round(rotateAngle));
+
+        // update map with position
+        arrowMarker.setAngle((float) currentBearing);
+
+        // perform forward
+        var result = sendCommand("forward=" + (int) Math.round(distance*1000));
+        System.out.println("forward=" + (int) Math.round(distance*1000));
+
+        // update map with position
+        currentGraphic.setGeometry(point);
+
         //reset origin for next step
         originPoint = point;
       }
@@ -342,7 +380,7 @@ public class ControllerApp extends Application {
           .sslContext(sslContext)
           .build();
 
-      URI uri = URI.create("https://raspberrypi.local:8080/testOne?" + command);
+      URI uri = URI.create("https://raspberrypi3-1.local:8080/testOne?" + command);
       var request = HttpRequest
           .newBuilder()
           .uri(uri)
