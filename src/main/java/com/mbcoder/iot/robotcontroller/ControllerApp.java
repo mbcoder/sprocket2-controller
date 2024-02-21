@@ -9,32 +9,19 @@ import com.esri.arcgisruntime.layers.ArcGISVectorTiledLayer;
 import com.esri.arcgisruntime.mapping.Basemap;
 import com.esri.arcgisruntime.mapping.view.Graphic;
 import com.esri.arcgisruntime.mapping.view.GraphicsOverlay;
-import com.esri.arcgisruntime.symbology.MultilayerPointSymbol;
 import com.esri.arcgisruntime.symbology.PictureMarkerSymbol;
 import com.esri.arcgisruntime.symbology.SimpleLineSymbol;
-import com.esri.arcgisruntime.symbology.SimpleMarkerSymbol;
-import com.esri.arcgisruntime.symbology.SymbolLayer;
-import java.net.Socket;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.security.SecureRandom;
-import java.security.cert.X509Certificate;
 
-import java.util.concurrent.TimeUnit;
-import java.util.regex.Pattern;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 
+import javafx.application.Platform;
 import javafx.geometry.Point2D;
 import javafx.scene.control.Slider;
 import javafx.scene.paint.Color;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLEngine;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.X509ExtendedTrustManager;
 
 import com.esri.arcgisruntime.mapping.ArcGISMap;
-import com.esri.arcgisruntime.mapping.MobileMapPackage;
 import com.esri.arcgisruntime.mapping.view.MapView;
 import javafx.application.Application;
 import javafx.scene.Scene;
@@ -52,45 +39,16 @@ public class ControllerApp extends Application {
   private Graphic currentGraphic;
   PictureMarkerSymbol arrowMarker;
 
-  PointCollection routePoints;
-  GraphicsOverlay routeGraphicsOverlay;
-  SimpleLineSymbol lineSymbol;
+  private PointCollection routePoints;
+  private GraphicsOverlay routeGraphicsOverlay;
+  private SimpleLineSymbol lineSymbol;
 
-  private enum modes {SET_CURRENT, DRAW_ROUTE, IGNORE_CLICK};
+  private enum modes {SET_CURRENT, DRAW_ROUTE, IGNORE_CLICK}
 
   private modes appMode = modes.IGNORE_CLICK;
-
-  private final X509ExtendedTrustManager trustManager = new X509ExtendedTrustManager() {
-    @Override
-    public X509Certificate[] getAcceptedIssuers() {
-      return new X509Certificate[]{};
-    }
-
-    @Override
-    public void checkClientTrusted(X509Certificate[] chain, String authType) {
-    }
-
-    @Override
-    public void checkServerTrusted(X509Certificate[] chain, String authType) {
-    }
-
-    @Override
-    public void checkClientTrusted(X509Certificate[] chain, String authType, Socket socket) {
-    }
-
-    @Override
-    public void checkServerTrusted(X509Certificate[] chain, String authType, Socket socket) {
-    }
-
-    @Override
-    public void checkClientTrusted(X509Certificate[] chain, String authType, SSLEngine engine) {
-    }
-
-    @Override
-    public void checkServerTrusted(X509Certificate[] chain, String authType, SSLEngine engine) {
-    }
-  };
-
+  private final ExecutorService executorService = Executors.newSingleThreadExecutor();
+  private final RobotCommandRunner robotCommandRunner = new RobotCommandRunner();
+  private final AtomicBoolean cancelRoutePlaying = new AtomicBoolean();
 
   public static void main(String[] args) {
 
@@ -110,7 +68,6 @@ public class ControllerApp extends Application {
     BorderPane borderPane = new BorderPane();
     Scene scene = new Scene(borderPane);
     stage.setScene(scene);
-
 
     // create a MapView to display the map and add it to the stack pane
     mapView = new MapView();
@@ -174,17 +131,14 @@ public class ControllerApp extends Application {
     });
 
     Button btnDrawRoute = new Button("Draw route");
-    btnDrawRoute.setOnAction(event -> {
-      appMode = modes.DRAW_ROUTE;
-
-    });
+    btnDrawRoute.setOnAction(event -> appMode = modes.DRAW_ROUTE);
 
     Button btnClearRoute = new Button("Clear route");
     btnClearRoute.setOnAction(event -> {
       appMode = modes.DRAW_ROUTE;
 
       // clear route but add the first point to start a new one
-      if (routePoints.size() > 0) {
+      if (!routePoints.isEmpty()) {
         routePoints.clear();
         routePoints.add(currentLocation);
         routeGraphicsOverlay.getGraphics().clear();
@@ -195,41 +149,19 @@ public class ControllerApp extends Application {
     });
 
     Button btnFinishRoute = new Button("Finish route");
-    btnFinishRoute.setOnAction(event -> {
-      appMode = modes.IGNORE_CLICK;
-    });
+    btnFinishRoute.setOnAction(event -> appMode = modes.IGNORE_CLICK);
 
     Button btnPlayRoute = new Button("Play route");
     btnPlayRoute.setOnAction(event -> {
       appMode = modes.IGNORE_CLICK;
 
-      playRoute();
+      executorService.execute(this::playRoute);
     });
 
     Button btnStopRoute = new Button("Stop route");
     btnStopRoute.setOnAction(event -> {
       appMode = modes.IGNORE_CLICK;
-    });
-
-    Button btnForward = new Button("Forward 100");
-    btnForward.setOnAction(event -> {
-      appMode = modes.IGNORE_CLICK;
-      System.out.println("forward 100");
-      System.out.println(sendCommand("forward=100"));
-    });
-
-    Button btnForwardFail = new Button("Forward Fail");
-    btnForwardFail.setOnAction(event -> {
-      appMode = modes.IGNORE_CLICK;
-      System.out.println("forward 4000 to cause fail");
-      System.out.println(sendCommand("forward=4000"));
-    });
-
-    Button btnRotate = new Button("Rotate 10");
-    btnRotate.setOnAction(event -> {
-      appMode = modes.IGNORE_CLICK;
-      System.out.println("rotate 10");
-      System.out.println(sendCommand("rotate=10"));
+      cancelRoutePlaying.set(true);
     });
 
     buttonVbox.getChildren().addAll(
@@ -239,10 +171,7 @@ public class ControllerApp extends Application {
         btnFinishRoute,
         btnClearRoute,
         btnPlayRoute,
-        btnStopRoute,
-        btnForward,
-        btnForwardFail,
-        btnRotate);
+        btnStopRoute);
 
     // handle map click events
     mapView.setOnMouseClicked(event -> {
@@ -273,7 +202,6 @@ public class ControllerApp extends Application {
           arrowMarker.addDoneLoadingListener(() -> {
             System.out.println("arrow loaded");
 
-
             currentGraphic = new Graphic(mapLocation, arrowMarker);
 
             GraphicsOverlay locationOverlay = new GraphicsOverlay();
@@ -290,25 +218,32 @@ public class ControllerApp extends Application {
         routePoints.add(mapLocation);
 
         updateRouteGraphic();
-
       }
     });
 
     borderPane.setLeft(buttonVbox);
   }
 
+  /**
+   * Plays the entire route. It is expected this method will be run on a separate thread.
+   */
   private void playRoute() {
     System.out.println("playing route...");
+    cancelRoutePlaying.set(false);
 
     Point originPoint = null;
 
     // loop through the route points
     for (Point point: routePoints) {
-      // first point do nothing, just collect the point
-      if (originPoint == null) {
-        // store the origin
-        originPoint = point;
-      } else {
+      if (cancelRoutePlaying.get()) {
+        System.out.println("Cancel route");
+        cancelRoutePlaying.set(false);
+        break;
+      }
+
+      // Only send commands if we have already set an originPoint (first time through the loop
+      // the originPoint will still be null)
+      if (originPoint != null) {
         // process the 2 points
 
         var xDiff = point.getX() - originPoint.getX();
@@ -341,25 +276,45 @@ public class ControllerApp extends Application {
         if (rotateAngle < -180) rotateAngle+=360;
 
         // perform rotation
-        sendCommand("rotate=" + (int) Math.round(rotateAngle));
+        robotCommandRunner.sendCommand("rotate=" + (int) Math.round(rotateAngle));
         System.out.println("rotate=" + (int) Math.round(rotateAngle));
 
         // update map with position
-        arrowMarker.setAngle((float) currentBearing);
+        Platform.runLater(() -> arrowMarker.setAngle((float) currentBearing));
+
+        if (cancelRoutePlaying.get()) {
+          System.out.println("Cancel route");
+          cancelRoutePlaying.set(false);
+          break;
+        }
 
         // perform forward
-        var result = sendCommand("forward=" + (int) Math.round(distance*1000));
+        var result = robotCommandRunner.sendCommand("forward=" + (int) Math.round(distance*1000));
+        if (result != null) {
+          // Command failed
+          double distanceCompleted =  (result / 1000.0);
+          Point partialMovePoint = new Point(originPoint.getX() + (xDiff / distance * distanceCompleted),
+              originPoint.getY() + (yDiff / distance * distanceCompleted), point.getSpatialReference());
+          Platform.runLater(() -> currentGraphic.setGeometry(partialMovePoint));
+          System.out.printf("Stopped playing commands due to failure (moved %f)%n", distanceCompleted);
+          originPoint = partialMovePoint;
+          break;
+        }
         System.out.println("forward=" + (int) Math.round(distance*1000));
 
         // update map with position
-        currentGraphic.setGeometry(point);
-
-        //reset origin for next step
-        originPoint = point;
+        Platform.runLater(() -> currentGraphic.setGeometry(point));
       }
-
+      // set origin for next step
+      originPoint = point;
     }
 
+    if (originPoint != null) {
+      currentLocation = originPoint;
+      routePoints.clear();
+      routePoints.add(currentLocation);
+    }
+    System.out.println("Stopped playing commands");
   }
 
   private void updateRouteGraphic() {
@@ -368,42 +323,6 @@ public class ControllerApp extends Application {
     Polyline polyline = new Polyline(routePoints);
     Graphic graphic = new Graphic(polyline, lineSymbol);
     routeGraphicsOverlay.getGraphics().add(graphic);
-
-  }
-
-  private Double sendCommand(String command) {
-    try {
-      var sslContext = SSLContext.getInstance("TLS");
-      sslContext.init(null, new TrustManager[]{trustManager}, new SecureRandom());
-
-      var client = HttpClient.newBuilder()
-          .sslContext(sslContext)
-          .build();
-
-      URI uri = URI.create("https://raspberrypi3-1.local:8080/testOne?" + command);
-      var request = HttpRequest
-          .newBuilder()
-          .uri(uri)
-          .header("accept", "application/html")
-          .GET()
-          .build();
-
-      var responseAsync = client
-          .sendAsync(request, HttpResponse.BodyHandlers.ofString());
-      var httpResponse = responseAsync.get(200, TimeUnit.SECONDS);
-      var body = httpResponse.body();
-      Pattern responsePattern = Pattern.compile("^.*<P>Fail: *(\\d+)?</P>.*$");
-      var responseMatcher = responsePattern.matcher(body);
-      if (responseMatcher.matches()) {
-        if (responseMatcher.group(1) != null) {
-          // Failed - return the fail count
-          return Double.valueOf(responseMatcher.group(1));
-        }
-      }
-    } catch (Exception e) {
-      System.err.println(e.getMessage());
-    }
-    return null;
   }
 
   /**
@@ -411,6 +330,7 @@ public class ControllerApp extends Application {
    */
   @Override
   public void stop() {
+    executorService.shutdown();
 
     if (mapView != null) {
       mapView.dispose();
