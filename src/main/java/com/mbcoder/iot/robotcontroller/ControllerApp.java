@@ -18,6 +18,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import javafx.application.Platform;
 import javafx.geometry.Point2D;
+import javafx.geometry.Pos;
 import javafx.scene.control.Slider;
 import javafx.scene.layout.HBox;
 import javafx.scene.paint.Color;
@@ -176,6 +177,7 @@ public class ControllerApp extends Application {
     });
 
     HBox hBox = new HBox();
+    hBox.setAlignment(Pos.CENTER);
 
     Button btnRotateLeft = new Button("<-");
     btnRotateLeft.setOnAction(event -> {
@@ -188,6 +190,7 @@ public class ControllerApp extends Application {
     });
     hBox.getChildren().addAll(btnRotateLeft, btnRotateRight);
 
+    buttonVbox.setAlignment(Pos.CENTER);
     buttonVbox.getChildren().addAll(
         btnSetInitLocation,
         sliderDirection,
