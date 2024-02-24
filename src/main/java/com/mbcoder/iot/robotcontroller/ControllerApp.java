@@ -173,7 +173,7 @@ public class ControllerApp extends Application {
 
     Button btnForward = new Button("^");
     btnForward.setOnAction(event -> {
-      robotCommandRunner.sendCommand("forward=" + (int) 100);
+      robotCommandRunner.sendCommand("forward=" + (int) 200);
     });
 
     HBox hBox = new HBox();
