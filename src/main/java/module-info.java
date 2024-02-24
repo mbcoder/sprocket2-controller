@@ -28,6 +28,7 @@ module com.mbcoder.iot.robotcontroller {
   // modules required by the app
   requires com.esri.arcgisruntime;
   requires javafx.graphics;
+  requires javafx.web;
   requires org.slf4j.nop;
   requires java.net.http;
 

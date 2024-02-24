@@ -19,6 +19,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import javafx.application.Platform;
 import javafx.geometry.Point2D;
 import javafx.scene.control.Slider;
+import javafx.scene.layout.HBox;
 import javafx.scene.paint.Color;
 
 import com.esri.arcgisruntime.mapping.ArcGISMap;
@@ -28,6 +29,7 @@ import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.VBox;
+import javafx.scene.web.WebView;
 import javafx.stage.Stage;
 
 public class ControllerApp extends Application {
@@ -69,6 +71,11 @@ public class ControllerApp extends Application {
     Scene scene = new Scene(borderPane);
     stage.setScene(scene);
 
+    // create the web view for livestream
+    //WebView webView = new WebView();
+    //webView.getEngine().load("http://192.168.68.109:5000");
+    //borderPane.setRight(webView);
+
     // create a MapView to display the map and add it to the stack pane
     mapView = new MapView();
 
@@ -109,7 +116,6 @@ public class ControllerApp extends Application {
       map.setBasemap(basemap);
 
       mapView.setMap(map);
-
     });
 
     VBox buttonVbox = new VBox();
@@ -164,6 +170,24 @@ public class ControllerApp extends Application {
       cancelRoutePlaying.set(true);
     });
 
+    Button btnForward = new Button("^");
+    btnForward.setOnAction(event -> {
+      robotCommandRunner.sendCommand("forward=" + (int) 100);
+    });
+
+    HBox hBox = new HBox();
+
+    Button btnRotateLeft = new Button("<-");
+    btnRotateLeft.setOnAction(event -> {
+      robotCommandRunner.sendCommand("rotate=" + (int) -10);
+    });
+
+    Button btnRotateRight = new Button("->");
+    btnRotateRight.setOnAction(event -> {
+      robotCommandRunner.sendCommand("rotate=" + (int) 10);
+    });
+    hBox.getChildren().addAll(btnRotateLeft, btnRotateRight);
+
     buttonVbox.getChildren().addAll(
         btnSetInitLocation,
         sliderDirection,
@@ -171,7 +195,9 @@ public class ControllerApp extends Application {
         btnFinishRoute,
         btnClearRoute,
         btnPlayRoute,
-        btnStopRoute);
+        btnStopRoute,
+        btnForward,
+        hBox);
 
     // handle map click events
     mapView.setOnMouseClicked(event -> {
